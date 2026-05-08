@@ -33,6 +33,8 @@ func main() {
 		os.Exit(cmdList(args))
 	case "test":
 		os.Exit(cmdTest(args))
+	case "calibrate":
+		os.Exit(cmdCalibrate(args))
 	case "install":
 		os.Exit(cmdInstall(args))
 	case "uninstall":
@@ -59,6 +61,7 @@ USAGE
 COMMANDS
   run         Foreground daemon mode (used by launchd).
   learn NAME  Record a custom rhythm and add it to the config.
+  calibrate   Tune sensitivity.min_amplitude to your tap strength.
   list        Print configured taps.
   test        Like run, but prints "would run: ..." instead of executing.
   install     Write LaunchDaemon plist; load it. Requires sudo.

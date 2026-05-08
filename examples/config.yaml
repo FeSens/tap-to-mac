@@ -3,7 +3,8 @@
 
 sensitivity:
   # Minimum acceleration (in g) to register a tap. Lower = more sensitive.
-  min_amplitude: 0.15
+  # Run `sudo tap-to-mac calibrate` to auto-tune this to your tap strength.
+  min_amplitude: 0.05
 
   # Per-tap lockout in ms. Prevents one physical tap from being counted
   # multiple times due to IMU ringing. Must be smaller than burst_window_ms

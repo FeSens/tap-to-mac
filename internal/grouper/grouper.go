@@ -85,6 +85,9 @@ func NewSync(window time.Duration) *SyncGrouper {
 	return &SyncGrouper{Window: window}
 }
 
+// Pending returns the number of taps in the currently open burst.
+func (g *SyncGrouper) Pending() int { return len(g.current) }
+
 // Add appends a tap. If the new tap arrives more than Window after the
 // previous tap, the previous burst is closed and returned (with closed=true).
 // The new tap then begins the next burst.

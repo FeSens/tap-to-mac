@@ -20,7 +20,7 @@ import (
 // the silence after the last tap that closes a burst — must be larger than
 // CooldownMs or two taps could never live in the same burst.
 const (
-	DefaultMinAmplitude  = 0.15
+	DefaultMinAmplitude  = 0.05
 	DefaultCooldownMs    = 200
 	DefaultBurstWindowMs = 600
 )

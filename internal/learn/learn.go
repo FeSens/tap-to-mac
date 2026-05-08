@@ -20,30 +20,37 @@ import (
 )
 
 const (
-	requiredSamples    = 5
-	defaultTolerance   = 0.20
-	maxStdevRatio      = 0.50
-	maxIterations      = 30 // total tries before giving up
+	requiredSamples  = 5
+	defaultTolerance = 0.20
+	maxStdevRatio    = 0.50
+	maxIterations    = 30 // total tries before giving up
 )
 
 // TapStream abstracts the source of detector.Tap events used during
-// recording. A real implementation reads from the IMU; tests pass a slice.
+// recording.
+//
+// Next returns the next tap, or signals a timeout if `timeout` elapses
+// without a tap. Semantics:
+//   - (tap, true, nil)  → got a tap
+//   - (zero, false, nil) → timeout elapsed (caller closes the burst)
+//   - (zero, false, err) → ctx canceled or stream error
+//
+// If timeout is 0, the call blocks until a tap arrives or ctx is done.
 type TapStream interface {
-	Next(ctx context.Context) (detector.Tap, error)
+	Next(ctx context.Context, timeout time.Duration) (detector.Tap, bool, error)
 }
 
 // Recorder runs the interactive learning loop.
 type Recorder struct {
-	Stream         TapStream
-	BurstWindow    time.Duration
-	In             io.Reader
-	Out            io.Writer
-	Tolerance      float64
-	NowFn          func() time.Time
+	Stream      TapStream
+	BurstWindow time.Duration
+	In          io.Reader
+	Out         io.Writer
+	Tolerance   float64
+	NowFn       func() time.Time
 }
 
-// NewRecorder builds a Recorder with sensible defaults filled in for nil
-// fields.
+// NewRecorder builds a Recorder with sensible defaults filled in.
 func NewRecorder(stream TapStream, burstWindow time.Duration, in io.Reader, out io.Writer) *Recorder {
 	return &Recorder{
 		Stream:      stream,
@@ -117,27 +124,30 @@ func (r *Recorder) Run(ctx context.Context, name string) (*Result, error) {
 }
 
 // captureBurst pulls taps from the stream until a burst closes.
+//
+// First tap of a burst: wait indefinitely. Subsequent taps: wait at most
+// BurstWindow before closing the burst on inactivity.
 func (r *Recorder) captureBurst(ctx context.Context) (grouper.Burst, error) {
 	g := grouper.NewSync(r.BurstWindow)
-	var first detector.Tap
 	for {
-		tap, err := r.Stream.Next(ctx)
+		var timeout time.Duration
+		if g.Pending() > 0 {
+			timeout = r.BurstWindow
+		}
+		tap, ok, err := r.Stream.Next(ctx, timeout)
 		if err != nil {
 			return grouper.Burst{}, err
 		}
-		if first.Time.IsZero() {
-			first = tap
+		if !ok {
+			// Inactivity timeout: close the pending burst.
+			if b, ok := g.Flush(); ok {
+				return b, nil
+			}
+			// No pending burst — shouldn't happen because we only set
+			// timeout > 0 when one is pending — but be defensive.
+			continue
 		}
 		if closed, ok := g.Add(tap); ok {
-			// A new tap arrived after the window; the previous burst is closed.
-			return closed, nil
-		}
-		// Check if we've waited longer than the window since the last tap by
-		// asking the grouper to close at "now". This branch fires when the
-		// stream is paced naturally — Add() detected no gap on this tap, so
-		// we emulate the timer by examining the grouper state via CloseAt.
-		closed, ok := g.CloseAt(r.NowFn())
-		if ok {
 			return closed, nil
 		}
 	}

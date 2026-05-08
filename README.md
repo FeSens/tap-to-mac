@@ -36,7 +36,7 @@ that point on the daemon starts at boot.
 
 ```yaml
 sensitivity:
-  min_amplitude: 0.15
+  min_amplitude: 0.05
   cooldown_ms: 200
   burst_window_ms: 600
 
@@ -76,23 +76,39 @@ learned patterns above generic `count: N` patterns.
 Each tap entry takes an optional `enabled: false` to keep it in the config
 but skip it during matching.
 
+## Calibrate sensitivity
+
+The detection threshold (`sensitivity.min_amplitude`) needs to match how
+hard you actually tap your laptop. The default is reasonable but worth
+tuning for your taste:
+
+```bash
+sudo tap-to-mac calibrate
+```
+
+Tap firmly five times when prompted; the tool computes a recommended
+threshold from the median amplitude and writes it back to your
+`config.yaml`.
+
 ## Teach it a custom rhythm
 
 ```bash
 sudo tap-to-mac learn rhythm-vscode
 ```
 
-Walks you through 5 recordings of the rhythm, drops the worst outlier,
-computes interval bounds with 20% tolerance, and saves it to
+Offers a calibration pass first (recommended on first run), then walks you
+through 5 recordings of the rhythm, drops the worst outlier, computes
+interval bounds with 20% tolerance, and saves it to
 `~/.config/tap-to-mac/templates/<name>.json`. Then prompts for the command
 and inserts the entry above the first generic `count` pattern in
-`config.yaml`.
+`config.yaml`. Use `--no-calibrate` to skip the calibration prompt.
 
 ## Subcommands
 
 ```
 tap-to-mac run          Foreground daemon mode (used by launchd).
 tap-to-mac learn <name> Record and save a custom rhythm.
+tap-to-mac calibrate    Tune sensitivity to your tap strength.
 tap-to-mac list         Print configured taps.
 tap-to-mac test         Like run, but prints "would run: ..." instead of executing.
 tap-to-mac install      Write LaunchDaemon plist; load it.
@@ -101,7 +117,7 @@ tap-to-mac doctor       Health check + tail of recent log entries.
 tap-to-mac --version    Print build version.
 ```
 
-`run`, `learn`, and `test` need `sudo`; the others don't.
+`run`, `learn`, `calibrate`, and `test` need `sudo`; the others don't.
 
 ## Where things live
 

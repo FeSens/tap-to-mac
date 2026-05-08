@@ -74,7 +74,7 @@ The upstream `apple-silicon-accelerometer/detector` already does high-pass filte
 - Drop events with `Amplitude < min_amplitude`.
 - After emitting a tap, enforce `cooldown_ms` lockout regardless of further upstream events.
 
-Defaults: `min_amplitude: 0.15` (matches spank's working value), `cooldown_ms: 200`. The cooldown is shorter than spank's because it serves a different role here — it's a per-tap debounce, not a per-action lockout. For multi-tap detection to work it must be smaller than `burst_window_ms` (otherwise no two taps can fit in one burst).
+Defaults: `min_amplitude: 0.05` (matches spank's working default; users tune their own value via `tap-to-mac calibrate`), `cooldown_ms: 200`. The cooldown is shorter than spank's because it serves a different role here — it's a per-tap debounce, not a per-action lockout. For multi-tap detection to work it must be smaller than `burst_window_ms` (otherwise no two taps can fit in one burst).
 
 ### Grouping (`grouper`)
 
@@ -137,8 +137,8 @@ Recommended ordering convention (documented in the README): list specific learne
 
 ```yaml
 sensitivity:
-  min_amplitude: 0.15
-  cooldown_ms: 750
+  min_amplitude: 0.05
+  cooldown_ms: 200
   burst_window_ms: 600
 
 taps:
@@ -364,5 +364,5 @@ CI: `go vet`, `go test ./...`, `golangci-lint`. Build matrix on `darwin/arm64` o
 - **GUI config editor** — v1 is YAML + CLI only.
 - **Per-tap cooldown** — global cooldown only in v1.
 - **Pattern conflict detector** — v1 just first-match-wins; could later warn at config load when two learned patterns overlap.
-- **Calibration command** — auto-tune `min_amplitude` based on a few sample taps. Useful but not v1.
+- ~~**Calibration command** — auto-tune `min_amplitude` based on a few sample taps.~~ Shipped post-v1 as `tap-to-mac calibrate`.
 - **Variable-N learn mode** — currently requires all 5 recordings to have the same tap count. A future version could accept a small N variance and pick the modal count.

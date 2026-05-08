@@ -244,9 +244,10 @@ func filepathDir(p string) string {
 }
 
 const starterConfig = `# tap-to-mac config — auto-generated. Edit and the daemon picks it up.
+# Run ` + "`sudo tap-to-mac calibrate`" + ` to tune min_amplitude to your tap strength.
 
 sensitivity:
-  min_amplitude: 0.15
+  min_amplitude: 0.05
   cooldown_ms: 200
   burst_window_ms: 600
 

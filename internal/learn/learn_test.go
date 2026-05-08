@@ -12,34 +12,39 @@ import (
 	"github.com/FeSens/tap-to-mac/internal/detector"
 )
 
-// scriptedStream feeds taps with controlled timing.
+// scriptedStream models a tap stream over virtual time. The tap's `Time`
+// field IS the virtual time at which it occurs. When the recorder asks for
+// Next with a non-zero timeout, the stream advances virtual now and either
+// returns the next tap (if it falls within the deadline) or signals timeout.
 type scriptedStream struct {
-	taps []detector.Tap
-	idx  int
+	taps       []detector.Tap
+	idx        int
+	virtualNow time.Time
 }
 
-func (s *scriptedStream) Next(_ context.Context) (detector.Tap, error) {
+func (s *scriptedStream) Next(_ context.Context, timeout time.Duration) (detector.Tap, bool, error) {
 	if s.idx >= len(s.taps) {
-		return detector.Tap{}, io.EOF
-	}
-	t := s.taps[s.idx]
-	s.idx++
-	return t, nil
-}
-
-// fakeNow returns the time of the next tap or, if none remain, far in the
-// future so that grouper.CloseAt fires.
-func fakeNowFromIdx(taps []detector.Tap, idx *int) func() time.Time {
-	return func() time.Time {
-		if *idx >= len(taps) {
-			return time.Unix(9999, 0)
+		if timeout > 0 {
+			s.virtualNow = s.virtualNow.Add(timeout)
+			return detector.Tap{}, false, nil
 		}
-		return taps[*idx].Time
+		return detector.Tap{}, false, io.EOF
 	}
+	next := s.taps[s.idx]
+	if timeout > 0 {
+		deadline := s.virtualNow.Add(timeout)
+		if next.Time.After(deadline) {
+			s.virtualNow = deadline
+			return detector.Tap{}, false, nil
+		}
+	}
+	s.virtualNow = next.Time
+	s.idx++
+	return next, true, nil
 }
 
 // makeBurstSequence constructs a slice of taps for n bursts of size taps each.
-// Bursts are separated by 2*window to ensure they close.
+// Bursts are separated by 2*window so the captureBurst timeout fires.
 func makeBurstSequence(nBursts, sizeEach int, intervalsMs []int64, window time.Duration) []detector.Tap {
 	out := []detector.Tap{}
 	t := time.Unix(0, 0)
@@ -60,16 +65,15 @@ func TestRecorder_HappyPath(t *testing.T) {
 
 	stream := &scriptedStream{taps: taps}
 	out := &bytes.Buffer{}
-	in := strings.NewReader("\nopen -a Spotify\n") // Enter to start, then command
+	in := strings.NewReader("\nopen -a Spotify\n")
 
-	idx := &stream.idx
 	r := &Recorder{
 		Stream:      stream,
 		BurstWindow: window,
 		In:          in,
 		Out:         out,
 		Tolerance:   0.20,
-		NowFn:       fakeNowFromIdx(taps, idx),
+		NowFn:       func() time.Time { return time.Unix(0, 0) },
 	}
 
 	res, err := r.Run(context.Background(), "test-pattern")
@@ -92,13 +96,12 @@ func TestRecorder_HappyPath(t *testing.T) {
 	}
 }
 
-func TestRecorder_TooInconsistentReturnsError(t *testing.T) {
+func TestRecorder_OutlierDropped(t *testing.T) {
 	window := 600 * time.Millisecond
-	// Wildly varying intervals
 	bursts := [][]int64{
 		{100, 100},
 		{100, 100},
-		{500, 500}, // dropped as outlier — fine
+		{500, 500}, // outlier
 		{100, 100},
 		{100, 100},
 	}
@@ -117,10 +120,8 @@ func TestRecorder_TooInconsistentReturnsError(t *testing.T) {
 	out := &bytes.Buffer{}
 	in := strings.NewReader("\nfoo\n")
 	r := NewRecorder(stream, window, in, out)
-	r.NowFn = fakeNowFromIdx(taps, &stream.idx)
+	r.NowFn = func() time.Time { return time.Unix(0, 0) }
 
-	// First three bursts (100,100), (100,100), (500,500) → after dropping
-	// the 500/500 outlier the remaining four converge. Should succeed.
 	res, err := r.Run(context.Background(), "p")
 	if err != nil {
 		t.Fatalf("expected success after outlier drop: %v", err)
@@ -144,5 +145,24 @@ func TestRecorder_StopsOnStreamError(t *testing.T) {
 	}
 	if !errors.Is(err, io.EOF) && !strings.Contains(err.Error(), "EOF") {
 		t.Fatalf("expected EOF-derived error, got %v", err)
+	}
+}
+
+func TestCaptureBurst_ClosesOnInactivityNotOnNewTap(t *testing.T) {
+	window := 100 * time.Millisecond
+	// Two taps at 0 and 50ms then a long pause; burst should close after window.
+	stream := &scriptedStream{taps: []detector.Tap{
+		{Time: time.Unix(0, 0)},
+		{Time: time.Unix(0, int64(50*time.Millisecond))},
+	}}
+	r := NewRecorder(stream, window, strings.NewReader(""), &bytes.Buffer{})
+	r.NowFn = func() time.Time { return time.Unix(0, 0) }
+
+	burst, err := r.captureBurst(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if burst.Size() != 2 {
+		t.Fatalf("size: got %d want 2", burst.Size())
 	}
 }
