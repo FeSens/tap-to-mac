@@ -21,6 +21,7 @@ import (
 type Event struct {
 	Time      time.Time
 	Amplitude float64
+	Severity  string // upstream label (e.g. "light", "moderate", "heavy"); diagnostic only
 }
 
 // Source is a long-lived IMU reader. Start launches the sensor goroutine
@@ -143,7 +144,7 @@ func (s *Source) loop(ctx context.Context) {
 			}
 			lastEventTime = ev.Time
 			select {
-			case s.events <- Event{Time: ev.Time, Amplitude: ev.Amplitude}:
+			case s.events <- Event{Time: ev.Time, Amplitude: ev.Amplitude, Severity: ev.Severity}:
 			case <-s.stop:
 				return
 			case <-ctx.Done():
