@@ -7,9 +7,10 @@ sensitivity:
   min_amplitude: 0.05
 
   # Per-tap lockout in ms. Prevents one physical tap from being counted
-  # multiple times due to IMU ringing. Must be smaller than burst_window_ms
-  # — otherwise no two taps can live in the same burst.
-  cooldown_ms: 200
+  # multiple times due to IMU ringing (the IMU continues oscillating for
+  # ~250-400ms after a real tap). Must be smaller than burst_window_ms —
+  # otherwise no two taps can live in the same burst.
+  cooldown_ms: 350
 
   # Silence (in ms) after the last tap that closes a burst.
   # tap-tap-tap with gaps under this = a single burst of 3.

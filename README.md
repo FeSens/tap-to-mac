@@ -37,7 +37,7 @@ that point on the daemon starts at boot.
 ```yaml
 sensitivity:
   min_amplitude: 0.05
-  cooldown_ms: 200
+  cooldown_ms: 350
   burst_window_ms: 600
 
 taps:

@@ -21,7 +21,7 @@ import (
 // CooldownMs or two taps could never live in the same burst.
 const (
 	DefaultMinAmplitude  = 0.05
-	DefaultCooldownMs    = 200
+	DefaultCooldownMs    = 350
 	DefaultBurstWindowMs = 600
 )
 

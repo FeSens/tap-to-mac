@@ -22,11 +22,11 @@ import (
 const (
 	calibrationSamples   = 5
 	calibrationTimeoutS  = 30
-	calibrationFloor     = 0.02 // never set min_amplitude below this
-	calibrationCeiling   = 0.5  // never set min_amplitude above this
-	calibrationFactor    = 0.4  // threshold = median * factor
-	calibrationCooldown  = 200 * time.Millisecond
-	calibrationLowFilter = 0.01 // very-low filter so even gentle taps register
+	calibrationFloor     = 0.005 // never set min_amplitude below this
+	calibrationCeiling   = 0.5   // never set min_amplitude above this
+	calibrationFactor    = 0.7   // threshold = weakest_real_tap * factor
+	calibrationCooldown  = 350 * time.Millisecond
+	calibrationLowFilter = 0.003 // pre-filter so background <0.003 doesn't pollute samples
 )
 
 func cmdCalibrate(args []string) int {
@@ -115,26 +115,42 @@ func runCalibration(ctx context.Context, src *hid.Source, in io.Reader, out io.W
 	}
 done:
 	threshold := recommendedThreshold(amps)
-	fmt.Fprintf(out, "Median amplitude: %.3f → recommended min_amplitude: %.3f\n", median(amps), threshold)
+	fmt.Fprintf(out, "Weakest real tap: %.4f → recommended min_amplitude: %.4f\n", weakestRealTap(amps), threshold)
 	return threshold, nil
 }
 
 // recommendedThreshold computes the suggested min_amplitude from a list of
-// observed tap amplitudes. The result is clamped to [floor, ceiling] and
-// scaled by `factor` from the median.
+// observed tap amplitudes. We want every real tap to register, so we
+// anchor on the *weakest* real tap (with the very lowest sample dropped
+// in case it's a calibration false-positive) and apply a safety factor.
+//
+// Result is clamped to [floor, ceiling].
 func recommendedThreshold(amps []float64) float64 {
 	if len(amps) == 0 {
 		return calibrationFloor
 	}
-	med := median(amps)
-	t := med * calibrationFactor
+	t := weakestRealTap(amps) * calibrationFactor
 	if t < calibrationFloor {
 		t = calibrationFloor
 	}
 	if t > calibrationCeiling {
 		t = calibrationCeiling
 	}
-	return roundTo(t, 3)
+	return roundTo(t, 4)
+}
+
+// weakestRealTap is the smallest sample after dropping the lowest as a
+// potential noise spike. For 5 samples this is the 2nd-lowest.
+func weakestRealTap(amps []float64) float64 {
+	if len(amps) == 0 {
+		return 0
+	}
+	cp := append([]float64(nil), amps...)
+	sort.Float64s(cp)
+	if len(cp) >= 3 {
+		return cp[1]
+	}
+	return cp[0]
 }
 
 func median(xs []float64) float64 {
