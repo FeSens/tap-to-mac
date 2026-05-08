@@ -1,0 +1,17 @@
+# Build artifacts
+/tap-to-mac
+/dist/
+/bin/
+
+# Go
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store

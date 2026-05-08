@@ -1,0 +1,27 @@
+tap-to-mac
+==========
+
+This product includes software inspired by and depending on work from the
+following open-source projects.
+
+
+taigrr/spank
+------------
+https://github.com/taigrr/spank
+License: MIT
+
+The idea of using the Apple Silicon IMU to detect physical hits on the laptop
+comes from spank. tap-to-mac borrows the same hardware approach and re-uses
+spank's accelerometer library directly. Thanks to taigrr for the original work
+and for spinning the IMU reader out as a reusable library.
+
+
+taigrr/apple-silicon-accelerometer
+----------------------------------
+https://github.com/taigrr/apple-silicon-accelerometer
+License: MIT
+Copyright (c) 2026 olvvier
+
+tap-to-mac depends on this library for IOKit HID access, the shared-memory
+ring buffer, and the upstream vibration detector. It is pulled in as a normal
+Go module via go.mod; no source is vendored.

@@ -1,0 +1,34 @@
+# tap-to-mac example config.
+# Copy to ~/.config/tap-to-mac/config.yaml and edit.
+
+sensitivity:
+  # Minimum acceleration (in g) to register a tap. Lower = more sensitive.
+  min_amplitude: 0.15
+
+  # Per-tap lockout in ms. Prevents one physical tap from being counted
+  # multiple times due to IMU ringing. Must be smaller than burst_window_ms
+  # — otherwise no two taps can live in the same burst.
+  cooldown_ms: 200
+
+  # Silence (in ms) after the last tap that closes a burst.
+  # tap-tap-tap with gaps under this = a single burst of 3.
+  burst_window_ms: 600
+
+taps:
+  # Double-tap → open Spotify.
+  - name: open-spotify
+    pattern: { type: count, n: 2 }
+    command: open -a Spotify
+
+  # Triple-tap → lock the screen.
+  - name: lock-screen
+    pattern: { type: count, n: 3 }
+    command: pmset displaysleepnow
+
+  # Disabled until you record it (remove `enabled: false` once ready).
+  - name: rhythm-vscode
+    enabled: false
+    pattern:
+      type: learned
+      template: templates/rhythm-vscode.json
+    command: open -a "Visual Studio Code"
