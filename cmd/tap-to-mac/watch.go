@@ -24,7 +24,7 @@ func cmdWatch(args []string) int {
 		return 1
 	}
 
-	src, err := hid.Open()
+	src, err := openIMU()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1

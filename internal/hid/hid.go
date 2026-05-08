@@ -36,6 +36,10 @@ type Source struct {
 	stop     chan struct{}
 	stopped  chan struct{}
 	sensorEr chan error
+
+	// attached means another process owns the shm + sensor; we just read.
+	// When true, Close skips Unlink to avoid breaking the writer.
+	attached bool
 }
 
 const (
@@ -45,6 +49,9 @@ const (
 
 // Open creates the shared-memory ring, starts the sensor in a background
 // goroutine, and returns a Source ready for Start().
+//
+// Only one process can hold the IOKit HID handles at a time on macOS. If a
+// daemon is already running, use OpenAttached instead.
 func Open() (*Source, error) {
 	ring, err := shm.CreateRing(shm.NameAccel)
 	if err != nil {
@@ -69,6 +76,34 @@ func Open() (*Source, error) {
 	time.Sleep(100 * time.Millisecond)
 	return src, nil
 }
+
+// OpenAttached opens the shm ring read-only and drives the upstream
+// detector locally — without starting our own sensor. Use when another
+// process (typically the LaunchDaemon) is already writing to the ring,
+// so we don't fight it for IOKit HID access.
+//
+// The shm segment is created by the daemon under root; readers must also
+// be root to open it.
+func OpenAttached() (*Source, error) {
+	ring, err := shm.OpenRing(shm.NameAccel)
+	if err != nil {
+		return nil, fmt.Errorf("hid: open shm read-only: %w", err)
+	}
+	return &Source{
+		PollInterval: defaultPoll,
+		MaxBatch:     defaultMaxBatch,
+		ring:         ring,
+		det:          upDet.New(),
+		events:       make(chan Event, 256),
+		stop:         make(chan struct{}),
+		stopped:      make(chan struct{}),
+		sensorEr:     make(chan error, 1),
+		attached:     true,
+	}, nil
+}
+
+// IsAttached reports whether the source is reading another process's shm.
+func (s *Source) IsAttached() bool { return s.attached }
 
 // Events returns the raw event channel. Closed after Close() drains.
 func (s *Source) Events() <-chan Event { return s.events }
@@ -95,7 +130,11 @@ func (s *Source) Close() error {
 	<-s.stopped
 	if s.ring != nil {
 		_ = s.ring.Close()
-		_ = s.ring.Unlink()
+		// Only unlink if we own the segment. Otherwise we'd remove the
+		// daemon's shm name from under it, breaking its restart cycle.
+		if !s.attached {
+			_ = s.ring.Unlink()
+		}
 		s.ring = nil
 	}
 	return nil

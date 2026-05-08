@@ -100,7 +100,14 @@ func runDaemon(args []string, dryRun bool) int {
 	ctx, cancel := newCtx()
 	defer cancel()
 
-	src, err := hid.Open()
+	// In dry-run mode (`tap-to-mac test`) attach to a running daemon if
+	// there is one. Real run mode is the daemon — always create.
+	var src *hid.Source
+	if dryRun {
+		src, err = openIMU()
+	} else {
+		src, err = hid.Open()
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
